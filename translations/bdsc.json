@@ -1,10 +1,10 @@
 {
   "id": "bdsc",
-  "name": "Bible BDSC",
-  "language": "Ndebele",
+  "name": "Bhaibheri Dzvene muchiShona Chanhasi",
+  "language": "Shona",
   "verses": {
-    "John 3:16": "(BDSC) Ngoba uNkulunkulu wathanda kakhulu umhlaba waze wanikela ngoNdodana yakhe...",
-    "John 3:17": "(BDSC) Ngoba uNkulunkulu akazange ayithumele iNdodana yakhe emhlabeni ukuze iyohlulela...",
-    "John 3:18": "(BDSC) Lowo okholwayo kuye akahlulelwa..."
+    "John 3:16": "Nokuti Mwari akada nyika nokudaro, kuti akapa Mwanakomana wake mumwe oga, kuti ani naani anotenda kwaari arege kufa asi ave noupenyu husingaperi.",
+    "John 3:17": "Nokuti Mwari haana kutuma Mwanakomana wake panyika kuti atonge nyika, asi kuti nyika iponeswe kubudikidza naye.",
+    "John 3:18": "Ani naani anotenda kwaari haatongwi, asi ani naani asingatendi atotongwa nokuti haana kutenda muzita roMwanakomana mumwe oga waMwari. "
   }
 }

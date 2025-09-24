@@ -28,7 +28,8 @@
 
   /* versions list */
   .versions-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-  .versions-list label{display:flex;align-items:center;gap:8px;cursor:pointer}
+  .versions-list label{display:flex;align-items:center;gap:8px;cursor:grab}
+  .versions-list label.dragging{opacity:0.5}
   .muted{color:var(--muted)}
 
   /* parallel */
@@ -72,7 +73,7 @@
         <div class="muted" id="activeCount">0 active</div>
       </div>
       <div class="versions-list" id="versionsList"></div>
-      <div class="muted small" style="margin-top:8px">⚠ Max 7 versions visible at once.</div>
+      <div class="muted small" style="margin-top:8px">⚠ Max 7 versions visible at once. Drag to reorder.</div>
     </div>
   </div>
   <div class="right">
@@ -87,7 +88,7 @@
     </div>
   </div>
 </div>
-<footer>Local Bible prototype — selections & settings are saved automatically.</footer>
+<footer>Local Bible prototype — selections, order, and last verse are saved automatically.</footer>
 
 <script>
 const files = [
@@ -99,6 +100,8 @@ let loadedTranslations = [];
 let selectedIds = new Set();
 let parallelMode = true;
 let panelVisible = true;
+let lastVerse = "";
+let order = [...files.map(f=>f.replace(/\.json$/,""))];
 const MAX_VERSIONS = 7;
 
 // localStorage keys
@@ -108,7 +111,9 @@ function saveSettings(){
   const data = {
     selectedIds: Array.from(selectedIds),
     parallelMode,
-    panelVisible
+    panelVisible,
+    lastVerse,
+    order
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
@@ -120,6 +125,8 @@ function loadSettings(){
       selectedIds = new Set(data.selectedIds || []);
       parallelMode = data.parallelMode !== false;
       panelVisible = data.panelVisible !== false;
+      lastVerse = data.lastVerse || "";
+      order = data.order || order;
     }
   } catch(e){}
 }
@@ -134,23 +141,45 @@ async function loadTranslations(){
       loadedTranslations.push(data);
     } catch(err){ console.error("Error loading", f, err); }
   }
-  // default: all selected if none saved
   if(selectedIds.size===0) selectedIds = new Set(loadedTranslations.map(t=>t.id));
   buildVersionsList();
   render();
+  if(lastVerse) scrollToVerse(lastVerse);
 }
 
 function buildVersionsList(){
   const list = document.getElementById("versionsList");
   list.innerHTML = "";
-  loadedTranslations.forEach(t=>{
+  const ordered = order.map(id => loadedTranslations.find(t=>t.id===id)).filter(Boolean);
+  ordered.forEach(t=>{
     const id = t.id;
     const checked = selectedIds.has(id);
     const disabled = !checked && selectedIds.size >= MAX_VERSIONS;
     const label = document.createElement("label");
+    label.draggable = true;
     label.innerHTML = `<input type="checkbox" data-id="${id}" ${checked?"checked":""} ${disabled?"disabled":""}/> ${t.name} <span class="muted small">(${t.language})</span>`;
     list.appendChild(label);
+
+    // drag events
+    label.addEventListener("dragstart", e=>{
+      label.classList.add("dragging");
+      e.dataTransfer.setData("text/plain", id);
+    });
+    label.addEventListener("dragend", ()=>label.classList.remove("dragging"));
+    label.addEventListener("dragover", e=>e.preventDefault());
+    label.addEventListener("drop", e=>{
+      e.preventDefault();
+      const draggedId = e.dataTransfer.getData("text/plain");
+      const targetId = id;
+      const from = order.indexOf(draggedId);
+      const to = order.indexOf(targetId);
+      if(from>=0 && to>=0 && from!==to){
+        order.splice(to,0,order.splice(from,1)[0]);
+        buildVersionsList(); render(); saveSettings();
+      }
+    });
   });
+
   list.querySelectorAll("input[type=checkbox]").forEach(cb=>{
     cb.addEventListener("change", e=>{
       const id = e.target.dataset.id;
@@ -164,7 +193,10 @@ function buildVersionsList(){
   document.getElementById("activeCount").innerText = selectedIds.size+" active";
 }
 
-function getActiveTranslations(){ return loadedTranslations.filter(t=>selectedIds.has(t.id)); }
+function getActiveTranslations(){
+  const active = order.map(id=>loadedTranslations.find(t=>t.id===id)).filter(Boolean);
+  return active.filter(t=>selectedIds.has(t.id));
+}
 
 function buildOrderedVerses(active){
   if(active.length===0) return [];
@@ -226,10 +258,7 @@ function renderFree(){
   });
 }
 
-// search
-document.getElementById("goBtn").addEventListener("click", ()=>{
-  const ref=document.getElementById("verseInput").value.trim();
-  if(!ref) return;
+function scrollToVerse(ref){
   if(parallelMode){
     const rows=Array.from(document.getElementById("parallelRows").children);
     const idx=rows.findIndex(r=>r.querySelector(".meta")?.innerText.toLowerCase()===ref.toLowerCase());
@@ -240,6 +269,15 @@ document.getElementById("goBtn").addEventListener("click", ()=>{
       if(m) list.scrollTop=m.offsetTop-6;
     });
   }
+}
+
+// search
+document.getElementById("goBtn").addEventListener("click", ()=>{
+  const ref=document.getElementById("verseInput").value.trim();
+  if(!ref) return;
+  lastVerse = ref;
+  scrollToVerse(ref);
+  saveSettings();
 });
 
 // events

@@ -1,10 +1,10 @@
 {
   "id": "sna2002",
-  "name": "Bible SNA2002",
+  "name": "Shona Bible 1949, Revised 2002",
   "language": "Shona",
   "verses": {
-    "John 3:16": "(SNA2002) Nokuti Mwari wakada nyika, akapa Mwanakomana wake mumwe chete...",
-    "John 3:17": "(SNA2002) Nokuti Mwari haana kutuma Mwanakomana wake munyika kuti atonge nyika...",
-    "John 3:18": "(SNA2002) Anotenda kwaari haatongwi, asi asingatendi atongwa kare..."
+    "John 3:16": "Nokuti Mwari akada nyika nokudaro, kuti akapa Mwanakomana wake akaberekwa mumwe woga, kuti ani naani anotenda kwaari, arege kufa, asi ave noupenyu husingaperi.",
+    "John 3:17": "Nokuti Mwari haana kutumira Mwanakomana wake panyika, kuti atonge nyika, asi kuti nyika iponeswe naye.",
+    "John 3:18": "Anotenda kwaari, haatongwi; asi asingatendi kwaari, atotongwa, nokuti haana kutenda kuzita roMwanakomana waMwari akaberekwa mumwe woga."
   }
 }
