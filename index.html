@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Parallel Bible Local</title>
+<style>
+  :root{
+    --bg:#071026; --panel:#0b1220; --muted:#9aa4b2; --accent:#60a5fa;
+  }
+  html,body{height:100%; margin:0; font-family:Inter, system-ui, sans-serif; background:var(--bg); color:#e6eef6}
+  header{display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,0.02);backdrop-filter: blur(6px);box-shadow:0 6px 18px rgba(0,0,0,0.35)}
+  h1{font-size:16px;margin:0}
+  .controls{margin-left:auto; display:flex; gap:10px; align-items:center}
+  .btn{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:6px 10px;border-radius:8px;color:var(--muted);cursor:pointer;font-size:13px}
+  .btn.primary{background:var(--accent); color:#04233d; border: none}
+  .topbar{display:flex;gap:8px;align-items:center}
+  input[type="text"]{padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+  label.switch{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+  .small{font-size:13px;color:var(--muted)}
+
+  /* main layout */
+  .main{display:flex;height:calc(100vh - 64px);gap:12px;padding:12px}
+  .left{width:260px; min-width:200px; transition:all 0.3s ease}
+  .left.hidden{display:none}
+  .panel{background:rgba(255,255,255,0.02); border-radius:10px;padding:10px;height:100%; overflow:auto}
+  .right{flex:1; display:flex; flex-direction:column}
+
+  /* versions list */
+  .versions-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .versions-list label{display:flex;align-items:center;gap:8px;cursor:pointer}
+  .muted{color:var(--muted)}
+
+  /* parallel header + rows */
+  .parallel-container{display:flex;flex-direction:column; height:100%}
+  .parallel-header{display:grid; gap:8px; padding:8px; border-bottom:1px solid rgba(255,255,255,0.02); align-items:center}
+  .parallel-rows{overflow:auto; flex:1; padding:8px}
+  .row{display:grid; gap:8px; padding:10px 6px; border-radius:6px; margin-bottom:8px; background: rgba(0,0,0,0.18);}
+  .cell .meta{font-size:12px;color:var(--muted); margin-bottom:6px}
+  .cell .text{line-height:1.35; max-height:240px; overflow:auto}
+
+  /* free mode */
+  .free-wrap{display:flex; gap:12px; height:100%}
+  .column{flex:1; background:rgba(255,255,255,0.01); border-radius:10px; padding:8px; display:flex; flex-direction:column; min-width:200px; overflow:hidden}
+  .col-head{margin-bottom:8px}
+  .verse-list{overflow:auto; flex:1}
+  .verse{padding:10px;border-radius:8px;margin-bottom:6px;background:rgba(0,0,0,0.2)}
+  .meta{font-size:12px;color:var(--muted)}
+  footer{padding:8px;color:var(--muted); font-size:13px; text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>Parallel Bible Local</h1>
+  <div class="controls">
+    <div class="topbar">
+      <input id="verseInput" placeholder="E.g. John 3:16" type="text" />
+      <button class="btn primary" id="goBtn">Go</button>
+      <label class="switch small">
+        <input type="checkbox" id="modeToggle" checked /> Parallel
+      </label>
+      <button class="btn" id="togglePanelBtn">Hide Panel</button>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+  <div class="left" id="leftPanel">
+    <div class="panel" id="versionsPanel">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:600">Translations</div>
+        <div class="muted" id="activeCount">0 active</div>
+      </div>
+      <div class="versions-list" id="versionsList"></div>
+      <div class="muted small" style="margin-top:8px">⚠ Max 7 versions visible at once.</div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="panel" id="contentPanel">
+      <div id="parallelArea" style="height:100%; display:none" class="parallel-container">
+        <div id="parallelHeader" class="parallel-header"></div>
+        <div id="parallelRows" class="parallel-rows"></div>
+      </div>
+      <div id="freeArea" style="height:100%; display:none">
+        <div id="freeWrap" class="free-wrap"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<footer>Local Bible prototype — max 7 versions shown. Versions in <code>translations/</code>.</footer>
+
+<script>
+const files = [
+  "tsw08no.json","be1978.json","ctwb24.json","bdsc.json","sna2002.json","sub1949.json",
+  "kjv.json","nkjv.json","esv.json","niv.json","amp.json"
+];
+
+let loadedTranslations = [];
+let selectedIds = new Set();
+let parallelMode = true;
+const MAX_VERSIONS = 7;
+
+async function loadTranslations(){
+  loadedTranslations = [];
+  for(const f of files){
+    try {
+      const res = await fetch("translations/"+f);
+      const data = await res.json();
+      if(!data.id) data.id = f.replace(/\.json$/,"");
+      loadedTranslations.push(data);
+    } catch(err){ console.error("Error loading", f, err); }
+  }
+  selectedIds = new Set(loadedTranslations.map(t=>t.id)); // all by default
+  buildVersionsList();
+  render();
+}
+
+function buildVersionsList(){
+  const list = document.getElementById("versionsList");
+  list.innerHTML = "";
+  loadedTranslations.forEach(t=>{
+    const id = t.id;
+    const checked = selectedIds.has(id);
+    const disabled = !checked && selectedIds.size >= MAX_VERSIONS;
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" data-id="${id}" ${checked?"checked":""} ${disabled?"disabled":""}/> ${t.name} <span class="muted small">(${t.language})</span>`;
+    list.appendChild(label);
+  });
+  list.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+    cb.addEventListener("change", e=>{
+      const id = e.target.dataset.id;
+      if(e.target.checked){
+        if(selectedIds.size < MAX_VERSIONS){ selectedIds.add(id); }
+        else { e.target.checked = false; alert("Max 7 versions allowed"); }
+      } else {
+        selectedIds.delete(id);
+      }
+      buildVersionsList();
+      render();
+    });
+  });
+  document.getElementById("activeCount").innerText = selectedIds.size+" active";
+}
+
+function getActiveTranslations(){ return loadedTranslations.filter(t=>selectedIds.has(t.id)); }
+
+function buildOrderedVerses(active){
+  if(active.length===0) return [];
+  let orderSource = active.find(t=>t.id.toLowerCase()==="kjv") || active[0];
+  const verses=[...Object.keys(orderSource.verses||{})];
+  active.forEach(t=>{
+    Object.keys(t.verses||{}).forEach(v=>{ if(!verses.includes(v)) verses.push(v); });
+  });
+  return verses;
+}
+
+function render(){
+  parallelMode = document.getElementById("modeToggle").checked;
+  const parallelArea = document.getElementById("parallelArea");
+  const freeArea = document.getElementById("freeArea");
+  if(parallelMode){ parallelArea.style.display="flex"; freeArea.style.display="none"; renderParallel(); }
+  else{ parallelArea.style.display="none"; freeArea.style.display="block"; renderFree(); }
+}
+
+function renderParallel(){
+  const active = getActiveTranslations();
+  const header=document.getElementById("parallelHeader"), rows=document.getElementById("parallelRows");
+  header.innerHTML=""; rows.innerHTML="";
+  if(active.length===0){ rows.innerHTML='<div class="muted">No translations selected.</div>'; return; }
+  const gridCols=`repeat(${active.length},1fr)`;
+  header.style.gridTemplateColumns=gridCols;
+  active.forEach(t=>{
+    const div=document.createElement("div");
+    div.innerHTML=`<div style="font-weight:700">${t.name}</div><div class="muted small">${t.language}</div>`;
+    header.appendChild(div);
+  });
+  const verses=buildOrderedVerses(active);
+  verses.forEach(ref=>{
+    const row=document.createElement("div"); row.className="row"; row.style.gridTemplateColumns=gridCols;
+    active.forEach(t=>{
+      const cell=document.createElement("div"); cell.className="cell";
+      const txt=(t.verses&&t.verses[ref])||"—";
+      cell.innerHTML=`<div class="meta">${ref}</div><div class="text">${txt}</div>`;
+      row.appendChild(cell);
+    });
+    rows.appendChild(row);
+  });
+}
+
+function renderFree(){
+  const active=getActiveTranslations();
+  const freeWrap=document.getElementById("freeWrap");
+  freeWrap.innerHTML="";
+  active.forEach(t=>{
+    const col=document.createElement("div"); col.className="column";
+    col.innerHTML=`<div class="col-head"><strong>${t.name}</strong><div class="muted small">${t.language}</div></div>`;
+    const list=document.createElement("div"); list.className="verse-list";
+    Object.entries(t.verses||{}).forEach(([ref,text])=>{
+      const v=document.createElement("div"); v.className="verse"; v.innerHTML=`<div class="meta">${ref}</div><div class="text">${text}</div>`;
+      list.appendChild(v);
+    });
+    col.appendChild(list);
+    freeWrap.appendChild(col);
+  });
+}
+
+document.getElementById("goBtn").addEventListener("click", ()=>{
+  const ref=document.getElementById("verseInput").value.trim();
+  if(!ref) return;
+  if(parallelMode){
+    const rows=Array.from(document.getElementById("parallelRows").children);
+    const idx=rows.findIndex(r=>r.querySelector(".meta")?.innerText.toLowerCase()===ref.toLowerCase());
+    if(idx>=0){ const rowsContainer=document.getElementById("parallelRows"); rowsContainer.scrollTop=rows[idx].offsetTop-6; }
+  } else {
+    document.querySelectorAll(".verse-list").forEach(list=>{
+      const m=Array.from(list.children).find(v=>v.querySelector(".meta").innerText.toLowerCase()===ref.toLowerCase());
+      if(m) list.scrollTop=m.offsetTop-6;
+    });
+  }
+});
+
+document.getElementById("modeToggle").addEventListener("change", render);
+document.getElementById("togglePanelBtn").addEventListener("click", ()=>{
+  document.getElementById("leftPanel").classList.toggle("hidden");
+});
+
+loadTranslations();
+</script>
+</body>
+</html>
