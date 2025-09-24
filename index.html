@@ -31,9 +31,9 @@
   .versions-list label{display:flex;align-items:center;gap:8px;cursor:pointer}
   .muted{color:var(--muted)}
 
-  /* parallel header + rows */
+  /* parallel */
   .parallel-container{display:flex;flex-direction:column; height:100%}
-  .parallel-header{display:grid; gap:8px; padding:8px; border-bottom:1px solid rgba(255,255,255,0.02); align-items:center}
+  .parallel-header{display:grid; gap:8px; padding:8px; border-bottom:1px solid rgba(255,255,255,0.02)}
   .parallel-rows{overflow:auto; flex:1; padding:8px}
   .row{display:grid; gap:8px; padding:10px 6px; border-radius:6px; margin-bottom:8px; background: rgba(0,0,0,0.18);}
   .cell .meta{font-size:12px;color:var(--muted); margin-bottom:6px}
@@ -57,7 +57,7 @@
       <input id="verseInput" placeholder="E.g. John 3:16" type="text" />
       <button class="btn primary" id="goBtn">Go</button>
       <label class="switch small">
-        <input type="checkbox" id="modeToggle" checked /> Parallel
+        <input type="checkbox" id="modeToggle" /> Parallel
       </label>
       <button class="btn" id="togglePanelBtn">Hide Panel</button>
     </div>
@@ -87,7 +87,7 @@
     </div>
   </div>
 </div>
-<footer>Local Bible prototype — max 7 versions shown. Versions in <code>translations/</code>.</footer>
+<footer>Local Bible prototype — selections & settings are saved automatically.</footer>
 
 <script>
 const files = [
@@ -98,7 +98,31 @@ const files = [
 let loadedTranslations = [];
 let selectedIds = new Set();
 let parallelMode = true;
+let panelVisible = true;
 const MAX_VERSIONS = 7;
+
+// localStorage keys
+const STORAGE_KEY = "parallelBibleSettings";
+
+function saveSettings(){
+  const data = {
+    selectedIds: Array.from(selectedIds),
+    parallelMode,
+    panelVisible
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadSettings(){
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if(data){
+      selectedIds = new Set(data.selectedIds || []);
+      parallelMode = data.parallelMode !== false;
+      panelVisible = data.panelVisible !== false;
+    }
+  } catch(e){}
+}
 
 async function loadTranslations(){
   loadedTranslations = [];
@@ -110,7 +134,8 @@ async function loadTranslations(){
       loadedTranslations.push(data);
     } catch(err){ console.error("Error loading", f, err); }
   }
-  selectedIds = new Set(loadedTranslations.map(t=>t.id)); // all by default
+  // default: all selected if none saved
+  if(selectedIds.size===0) selectedIds = new Set(loadedTranslations.map(t=>t.id));
   buildVersionsList();
   render();
 }
@@ -132,11 +157,8 @@ function buildVersionsList(){
       if(e.target.checked){
         if(selectedIds.size < MAX_VERSIONS){ selectedIds.add(id); }
         else { e.target.checked = false; alert("Max 7 versions allowed"); }
-      } else {
-        selectedIds.delete(id);
-      }
-      buildVersionsList();
-      render();
+      } else { selectedIds.delete(id); }
+      buildVersionsList(); render(); saveSettings();
     });
   });
   document.getElementById("activeCount").innerText = selectedIds.size+" active";
@@ -155,11 +177,11 @@ function buildOrderedVerses(active){
 }
 
 function render(){
-  parallelMode = document.getElementById("modeToggle").checked;
-  const parallelArea = document.getElementById("parallelArea");
-  const freeArea = document.getElementById("freeArea");
-  if(parallelMode){ parallelArea.style.display="flex"; freeArea.style.display="none"; renderParallel(); }
-  else{ parallelArea.style.display="none"; freeArea.style.display="block"; renderFree(); }
+  document.getElementById("modeToggle").checked = parallelMode;
+  const left=document.getElementById("leftPanel");
+  left.classList.toggle("hidden", !panelVisible);
+  if(parallelMode){ document.getElementById("parallelArea").style.display="flex"; document.getElementById("freeArea").style.display="none"; renderParallel(); }
+  else { document.getElementById("parallelArea").style.display="none"; document.getElementById("freeArea").style.display="block"; renderFree(); }
 }
 
 function renderParallel(){
@@ -204,13 +226,14 @@ function renderFree(){
   });
 }
 
+// search
 document.getElementById("goBtn").addEventListener("click", ()=>{
   const ref=document.getElementById("verseInput").value.trim();
   if(!ref) return;
   if(parallelMode){
     const rows=Array.from(document.getElementById("parallelRows").children);
     const idx=rows.findIndex(r=>r.querySelector(".meta")?.innerText.toLowerCase()===ref.toLowerCase());
-    if(idx>=0){ const rowsContainer=document.getElementById("parallelRows"); rowsContainer.scrollTop=rows[idx].offsetTop-6; }
+    if(idx>=0){ document.getElementById("parallelRows").scrollTop=rows[idx].offsetTop-6; }
   } else {
     document.querySelectorAll(".verse-list").forEach(list=>{
       const m=Array.from(list.children).find(v=>v.querySelector(".meta").innerText.toLowerCase()===ref.toLowerCase());
@@ -219,11 +242,16 @@ document.getElementById("goBtn").addEventListener("click", ()=>{
   }
 });
 
-document.getElementById("modeToggle").addEventListener("change", render);
+// events
+document.getElementById("modeToggle").addEventListener("change", e=>{
+  parallelMode = e.target.checked; render(); saveSettings();
+});
 document.getElementById("togglePanelBtn").addEventListener("click", ()=>{
-  document.getElementById("leftPanel").classList.toggle("hidden");
+  panelVisible=!panelVisible; render(); saveSettings();
 });
 
+// INIT
+loadSettings();
 loadTranslations();
 </script>
 </body>
