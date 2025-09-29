@@ -1,0 +1,21 @@
+# Node modules (if you later add npm/React tooling)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+
+# Logs
+*.log
+
+# Build artifacts (if we later add build tools)
+dist/
+build/
+
+# Local environment configs
+.env
